@@ -1,0 +1,200 @@
+package com.baidu.tbadk.core.view;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import android.content.Context;
+import android.os.Handler;
+import android.os.Message;
+import android.util.AttributeSet;
+import android.view.Gravity;
+import android.view.View;
+import android.view.animation.Animation;
+import android.view.animation.Animation.AnimationListener;
+import android.view.animation.AnimationUtils;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+
+import com.baidu.adp.lib.util.BdUtilHelper;
+import com.baidu.tbadk.TbPageContext;
+import com.baidu.tbadk.core.data.BzBannerData;
+import com.baidu.tbadk.core.util.UrlManager;
+import com.baidu.tbadk.core.util.resourceLoaderProc.ResourceLoaderType;
+import com.baidu.tbadk.widget.TbImageView;
+import com.baidu.tieba.R;
+
+public class AutoScrollView extends FrameLayout implements View.OnClickListener {
+
+	private TbPageContext<?> mTbContext;
+	private TbImageView mImageViewTop;
+	private TbImageView mImageViewBottom;
+	private ImageView mCloseBtn;
+	private Animation mLayerInAnimation;
+	private Animation mLayerOutAnimation;
+	private int mSrollTimes = 0;
+	private int mScrollInterval = 3000;// 轮播间隔,默认3s
+	private List<BzBannerData> mBannerDatas = new ArrayList<BzBannerData>();
+	private Handler mHandler = new Handler() {
+		@Override
+		public void handleMessage(Message msg) {
+			switch (msg.what) {
+			case 0:
+				if (mImageViewTop != null && mImageViewBottom != null) {
+					mSrollTimes++;
+					if (mSrollTimes % 2 == 0) {
+						mImageViewBottom.clearAnimation();
+						mImageViewBottom.startAnimation(mLayerOutAnimation);
+						mImageViewTop.setVisibility(View.VISIBLE);
+						mImageViewTop.clearAnimation();
+						mImageViewTop.startAnimation(mLayerInAnimation);
+					} else {
+						mImageViewTop.clearAnimation();
+						mImageViewTop.startAnimation(mLayerOutAnimation);
+						mImageViewBottom.setVisibility(View.VISIBLE);
+						mImageViewBottom.clearAnimation();
+						mImageViewBottom.startAnimation(mLayerInAnimation);
+					}
+				}
+				break;
+			}
+		}
+	};
+
+	public AutoScrollView(Context context) {
+		super(context);
+	}
+
+	public AutoScrollView(Context context, AttributeSet attrs, int defStyle) {
+		super(context, attrs, defStyle);
+	}
+
+	public AutoScrollView(Context context, AttributeSet attrs) {
+		super(context, attrs);
+	}
+
+	private void initUI() {
+		if (mBannerDatas == null || mBannerDatas.size() <= 0) {
+			return;
+		}
+		removeAllViews();
+		mImageViewBottom = null;
+		mImageViewTop = null;
+		mImageViewTop = new TbImageView(getContext());
+		mImageViewTop.setScaleType(ImageView.ScaleType.CENTER_CROP);
+		mImageViewTop.startLoad(mBannerDatas.get(0).getImgUrl(), ResourceLoaderType.SIMPLE, false);
+		mImageViewTop.setTag(mBannerDatas.get(0));
+		mImageViewTop.setOnClickListener(this);
+		mImageViewTop.clearAnimation();
+		LayoutParams params = new LayoutParams(LayoutParams.FILL_PARENT, LayoutParams.FILL_PARENT);
+		addView(mImageViewTop, params);
+		if (mBannerDatas.size() > 1) {
+			mImageViewBottom = new TbImageView(getContext());
+			mImageViewBottom.setScaleType(ImageView.ScaleType.CENTER_CROP);
+			mImageViewBottom.startLoad(mBannerDatas.get(1).getImgUrl(), ResourceLoaderType.SIMPLE, false);
+			mImageViewBottom.setTag(mBannerDatas.get(1));
+			mImageViewBottom.setOnClickListener(this);
+			mImageViewBottom.clearAnimation();
+			addView(mImageViewBottom, params);
+			mImageViewBottom.setVisibility(View.GONE);
+			mLayerInAnimation = AnimationUtils.loadAnimation(getContext(), R.anim.in_from_bottom);
+			mLayerOutAnimation = AnimationUtils.loadAnimation(getContext(), R.anim.out_from_top);
+			mLayerOutAnimation.setAnimationListener(new AnimationListener() {
+
+				@Override
+				public void onAnimationStart(Animation animation) {
+
+				}
+
+				@Override
+				public void onAnimationRepeat(Animation animation) {
+
+				}
+
+				@Override
+				public void onAnimationEnd(Animation animation) {
+					if (mSrollTimes % 2 == 0) {
+						mImageViewBottom.setVisibility(View.GONE);
+						fillImageView(mImageViewBottom);
+					} else {
+						mImageViewTop.setVisibility(View.GONE);
+						fillImageView(mImageViewTop);
+					}
+				}
+			});
+			mLayerInAnimation.setAnimationListener(new AnimationListener() {
+
+				@Override
+				public void onAnimationStart(Animation animation) {
+
+				}
+
+				@Override
+				public void onAnimationRepeat(Animation animation) {
+
+				}
+
+				@Override
+				public void onAnimationEnd(Animation animation) {
+					if (mSrollTimes % 2 == 0) {
+
+					} else {
+						mImageViewTop.clearAnimation();
+						mImageViewTop.startAnimation(mLayerOutAnimation);
+					}
+					mHandler.sendEmptyMessageDelayed(0, mScrollInterval);
+				}
+			});
+			mHandler.sendEmptyMessageDelayed(0, mScrollInterval);
+		}
+		mCloseBtn = new ImageView(getContext());
+		mCloseBtn.setBackgroundResource(R.drawable.icon_head_banner_close);
+		mCloseBtn.setOnClickListener(this);
+		LayoutParams btnParams = new LayoutParams(BdUtilHelper.getDimens(getContext(), R.dimen.ds60), BdUtilHelper.getDimens(getContext(), R.dimen.ds60));
+		btnParams.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+		btnParams.rightMargin = BdUtilHelper.getDimens(getContext(), R.dimen.ds10);
+		addView(mCloseBtn, btnParams);
+
+	}
+
+	public void onDestory() {
+		mHandler.removeMessages(0);
+		mHandler = null;
+	}
+
+	private void fillImageView(TbImageView view) {
+		if (mBannerDatas == null || mBannerDatas.size() <= 0) {
+			return;
+		}
+		int index = (mSrollTimes + 1) % mBannerDatas.size();
+		view.startLoad(mBannerDatas.get(index).getImgUrl(), ResourceLoaderType.SIMPLE, false);
+		view.setTag(mBannerDatas.get(index));
+	}
+
+	public void setData(TbPageContext<?> context, List<BzBannerData> bannerDatas) {
+		mSrollTimes = 0;
+		mHandler.removeMessages(0);
+		this.mBannerDatas = bannerDatas;
+		this.mTbContext = context;
+		initUI();
+	}
+
+	/**
+	 * 设置轮播的间隔,单位ms
+	 * 
+	 * @param scrollInterval
+	 */
+	public void setScrollInterval(int scrollInterval) {
+		mScrollInterval = scrollInterval;
+	}
+
+	@Override
+	public void onClick(View v) {
+		if (v == mCloseBtn) {
+			AutoScrollView.this.setVisibility(GONE);
+			mHandler.removeMessages(0);
+			mSrollTimes = 0;
+		} else if ((v == mImageViewTop || v == mImageViewBottom) && (v.getTag() instanceof BzBannerData)) {
+			UrlManager.getInstance().dealOneLink(mTbContext, new String[] { ((BzBannerData) v.getTag()).getClickUrl() });
+		}
+	}
+}
